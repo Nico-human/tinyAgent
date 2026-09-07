@@ -8,7 +8,6 @@ from dotenv import load_dotenv
 from langchain.agents import create_agent, AgentState
 from langchain.agents.middleware import (wrap_tool_call,
                                          ToolCallRequest,
-                                         after_agent,
                                          before_agent)
 from langchain.messages import HumanMessage, ToolMessage
 from langchain.tools import tool
@@ -17,7 +16,7 @@ from langchain_deepseek import ChatDeepSeek
 from langgraph.runtime import Runtime
 from langgraph.types import Command
 
-from middleware import TodoMiddleware, TodoState
+from middleware import TodoMiddleware, TodoState, UsageTrackMiddleware
 
 try:
     import readline
@@ -107,13 +106,6 @@ def large_output_middleware(request: ToolCallRequest,
 def context_inject_prompt(state: AgentState, runtime: Runtime) -> None:
     # TODO: 动态注入提示词
     print(f"\033[90m[HOOK] UserPromptSubmit: working in {WORKDIR}\033[0m")
-
-
-@after_agent
-def summary_middleware(state: AgentState, runtime: Runtime) -> None:
-    # TODO: 本次agent的输入了多少token, 输出了多少token
-    tool_count = sum(isinstance(m, ToolMessage) for m in state["messages"])
-    print(f"\033[90m[HOOK] Stop: session used {tool_count} tool calls\033[0m")
 
 # -- File and shell tools --
 
@@ -221,7 +213,7 @@ def build_agent(model: BaseChatModel | None = None):
             permission_middleware,
             log_middleware,
             large_output_middleware,
-            summary_middleware,
+            UsageTrackMiddleware(),
         ],
         system_prompt=SYSTEM,
     )
