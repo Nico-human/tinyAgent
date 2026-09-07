@@ -1,18 +1,23 @@
+import os
 import re
+import subprocess
 from pathlib import Path
 from typing import Callable
 
 from dotenv import load_dotenv
-from langchain.agents import create_agent
-from langchain.agents.middleware import wrap_tool_call, ToolCallRequest, after_agent
+from langchain.agents import create_agent, AgentState
+from langchain.agents.middleware import (wrap_tool_call,
+                                         ToolCallRequest,
+                                         after_agent,
+                                         before_agent)
 from langchain.messages import HumanMessage, ToolMessage
 from langchain.tools import tool
-from langchain_core.messages import BaseMessage
+from langchain_core.language_models import BaseChatModel
 from langchain_deepseek import ChatDeepSeek
-import subprocess
-import os
-
+from langgraph.runtime import Runtime
 from langgraph.types import Command
+
+from middleware import TodoMiddleware, TodoState
 
 try:
     import readline
@@ -28,10 +33,8 @@ load_dotenv(verbose=True, override=True)
 
 MODEL_ID = os.getenv("MODEL_ID", "deepseek-v4-flash")
 WORKDIR = Path.cwd()
-SYSTEM = f"You are a coding agent at {WORKDIR}. Use tools to solve tasks. Act, don't explain."
+SYSTEM = f"You are a coding agent at {WORKDIR}. Use tools to solve tasks."
 
-
-# s03 permission check logic, now wrapped as a hook
 DENY_LIST = ["rm -rf /", "sudo", "shutdown", "reboot", "mkfs", "dd if="]
 DESTRUCTIVE_COMMAND_WORD = re.compile(
     r"(?i)(?:^|[;&|()\n])\s*(?:rm|del)(?=\s|$|[;&|()])"
@@ -55,20 +58,23 @@ def permission_middleware(request: ToolCallRequest,
         for pattern in DENY_LIST:
             if pattern in command:
                 print(f"\n\033[31m[blocked] '{pattern}'\033[0m")
-                return ToolMessage("Permission denied by deny list")
+                return ToolMessage(content = "Permission denied by deny list",
+                                   tool_call_id = request.tool_call["id"])
         if bool(DESTRUCTIVE_COMMAND_WORD.search(command)) or \
            any(kw in command for kw in DESTRUCTIVE):
             print(f"\n\033[33m[permission] Potentially destructive command\033[0m")
             print(f"   Tool: {tool_name}({tool_args})")
             if input("   Allow? [y/N] ").strip().lower() not in ("y", "yes"):
-                return ToolMessage("Permission denied by user")
+                return ToolMessage(content = "Permission denied by user",
+                                   tool_call_id = request.tool_call["id"])
     elif tool_name in ("read_file", "edit_file", "write_file"):
         path = tool_args.get("path", "")
         if not (WORKDIR / path).resolve().is_relative_to(WORKDIR):
             print(f"\n\033[33m[permission] Access outside workspace\033[0m")
             print(f"   Tool: {tool_name}({tool_args})")
             if input("   Allow? [y/N] ").strip().lower() not in ("y", "yes"):
-                return ToolMessage("Permission denied by user")
+                return ToolMessage(content = "Permission denied by user",
+                                   tool_call_id = request.tool_call["id"])
     return handler(request)
 
 @wrap_tool_call
@@ -90,32 +96,26 @@ def large_output_middleware(request: ToolCallRequest,
     tool_call = request.tool_call
     tool_name = tool_call["name"]
     response = handler(request)
-    if (content_length := len(str(response.content))) > 100000:
-        print(f"\033[33m[HOOK] Large output from {tool_name}: {content_length} chars\033[0m")
+    if isinstance(response, ToolMessage):
+        content_length = len(str(response.content))
+        if content_length > 100000:
+            print(f"\033[33m[HOOK] Large output from {tool_name}: {content_length} chars\033[0m")
     return response
 
 
-@wrap_tool_call
-def context_inject_middleware(request: ToolCallRequest, handler: Callable[[ToolCallRequest], ToolMessage | Command]) -> ToolMessage | Command:
+@before_agent
+def context_inject_prompt(state: AgentState, runtime: Runtime) -> None:
+    # TODO: 动态注入提示词
     print(f"\033[90m[HOOK] UserPromptSubmit: working in {WORKDIR}\033[0m")
-    return handler(request)
 
 
 @after_agent
-def summary_middleware(messages: list):
-    tool_count = sum(1 for m in messages
-                     for b in (m.get("content") if isinstance(m.get("content"), list) else [])
-                     if isinstance(b, dict) and b.get("type") == "tool_result")
+def summary_middleware(state: AgentState, runtime: Runtime) -> None:
+    # TODO: 本次agent的输入了多少token, 输出了多少token
+    tool_count = sum(isinstance(m, ToolMessage) for m in state["messages"])
     print(f"\033[90m[HOOK] Stop: session used {tool_count} tool calls\033[0m")
-    return None
 
-
-def safe_path(p: str) -> Path:
-    path = (WORKDIR / p).resolve()
-    if not path.is_relative_to(WORKDIR):
-        raise ValueError(f"Path escapes workspace: {p}")
-    return path
-
+# -- File and shell tools --
 
 @tool("bash")
 def run_bash(command: str) -> str:
@@ -142,7 +142,8 @@ def run_read(path: str, limit: int | None = None) -> str:
     Read file contents.
     """
     try:
-        lines = safe_path(path).read_text(encoding="utf-8").splitlines()
+        file_path = (WORKDIR / path).resolve()
+        lines = file_path.read_text(encoding="utf-8").splitlines()
         if limit and 0 <= limit < len(lines):
             lines = lines[:limit] + [f"... ({len(lines) - limit} more lines)"]
         return "\n".join(lines)
@@ -156,12 +157,13 @@ def run_write(path: str, content: str) -> str:
     write content to a file.
     """
     try:
-        file_path = safe_path(path)
+        file_path = (WORKDIR / path).resolve()
         file_path.parent.mkdir(parents=True, exist_ok=True)
         file_path.write_text(content, encoding="utf-8")
         return f"Wrote {len(content)} bytes to {path}"
     except Exception as e:
         return f"Error: {e}"
+
 
 @tool("edit_file")
 def run_edit(path: str, old_text: str, new_text: str) -> str:
@@ -169,7 +171,7 @@ def run_edit(path: str, old_text: str, new_text: str) -> str:
     Replace exact text in a file once.
     """
     try:
-        file_path = safe_path(path)
+        file_path = (WORKDIR / path).resolve()
         text = file_path.read_text(encoding="utf-8")
         if old_text not in text:
             return f"Error: text not found in {path}"
@@ -177,6 +179,7 @@ def run_edit(path: str, old_text: str, new_text: str) -> str:
         return f"Edited {path}"
     except Exception as e:
         return f"Error: {e}"
+
 
 @tool("glob")
 def run_glob(pattern: str) -> str:
@@ -197,28 +200,52 @@ def run_glob(pattern: str) -> str:
     except Exception as e:
         return f"Error: {e}"
 
-model = ChatDeepSeek(
-    model=MODEL_ID,
-    temperature=0.7,
-    timeout=120,
-    max_retries=6,
-    max_tokens=80000,
-    model_kwargs={
-        "parallel_tool_calls": False,
-    },
-)
+def build_agent(model: BaseChatModel | None = None):
+    """Build an agent; accepting a model also allows offline testing."""
+    if model is None:
+        model = ChatDeepSeek(
+            model=MODEL_ID,
+            temperature=0.7,
+            timeout=120,
+            max_retries=6,
+            max_tokens=80000,
+            model_kwargs={"parallel_tool_calls": False},
+        )
 
-agent = create_agent(model=model,
-                     tools=[run_bash, run_read, run_write, run_edit, run_glob],
-                     middleware=[context_inject_middleware, log_middleware, permission_middleware, large_output_middleware],
-                     system_prompt=SYSTEM)
+    return create_agent(
+        model=model,
+        tools=[run_bash, run_read, run_write, run_edit, run_glob],
+        middleware=[
+            context_inject_prompt,
+            TodoMiddleware(),
+            permission_middleware,
+            log_middleware,
+            large_output_middleware,
+            summary_middleware,
+        ],
+        system_prompt=SYSTEM,
+    )
+
 
 # -- Entry point --
 if __name__ == "__main__":
     print("s01: Agent Loop")
     print("s02: Tool Use - four tools added to s01")
+    print("s04: Hooks - extension logic on hooks, loop stays clean")
+    print("s05: TodoWrite - plan before execution")
+
     print("Enter a question, press Enter to send. Type q to quit.\n")
-    history: list[BaseMessage] = []
+
+    model = ChatDeepSeek(
+        model=MODEL_ID,
+        temperature=0.7,
+        timeout=120,
+        max_retries=6,
+        max_tokens=80000,
+        model_kwargs={"parallel_tool_calls": False},
+    )
+    agent = build_agent(model=model)
+    session_state: TodoState = {"messages": []}
 
     while True:
         try:
@@ -229,7 +256,6 @@ if __name__ == "__main__":
         if query.strip().lower() in ("q", "quit", "exit", ""):
             break
 
-        history.append(HumanMessage(query))
-        result = agent.invoke({"messages": history})
-        history = result["messages"]
-        print(history[-1].content)
+        session_state["messages"].append(HumanMessage(query))
+        session_state = agent.invoke(session_state)
+        print(session_state["messages"][-1].content)
