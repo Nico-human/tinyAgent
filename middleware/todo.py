@@ -1,8 +1,7 @@
 import ast
 import json
-from typing import TypedDict, Annotated, Literal, NotRequired, Any, Callable
+from typing import Annotated, Any, Callable
 
-from langchain.agents import AgentState
 from langchain.agents.middleware import AgentMiddleware, ModelRequest, ModelResponse
 from langchain.messages import ToolMessage, SystemMessage, AIMessage, HumanMessage
 from langchain.tools import tool
@@ -10,6 +9,9 @@ from langgraph.prebuilt import ToolRuntime
 from langgraph.runtime import Runtime
 from langgraph.types import Command
 from pydantic import Field
+
+from context import AppContext
+from state import TodoState, TodoItem
 
 TODO_SYSTEM_PROMPT = (
     "Before starting any multi-step task, use todo_write to plan your steps. "
@@ -20,18 +22,7 @@ TODO_SYSTEM_PROMPT = (
 )
 
 
-class TodoItem(TypedDict):
-    content: Annotated[str, Field(min_length=1)]
-    status: Literal["pending", "in_progress", "completed"]
-
-
-class TodoState(AgentState):
-    # Kept in the input schema because the CLI explicitly passes state between turns.
-    todos: NotRequired[list[TodoItem]]
-    rounds_since_todo: NotRequired[int]
-
-
-class TodoMiddleware(AgentMiddleware[TodoState]):
+class TodoMiddleware(AgentMiddleware[TodoState, AppContext, Any]):
     state_schema = TodoState
 
     def __init__(self, system_prompt: str = TODO_SYSTEM_PROMPT) -> None:
@@ -98,7 +89,7 @@ class TodoMiddleware(AgentMiddleware[TodoState]):
     @tool("todo_write")
     def __run_todo_write(
             todos: Annotated[list[TodoItem], Field(max_length=20)] | str,
-            runtime: ToolRuntime[None, TodoState],
+            runtime: ToolRuntime[AppContext, TodoState],
     ) -> Command:
         """Replace the full task list; use pending, in_progress, or completed statuses."""
         try:
@@ -115,7 +106,7 @@ class TodoMiddleware(AgentMiddleware[TodoState]):
             "messages": [ToolMessage(content=output, tool_call_id=runtime.tool_call_id)],
         })
 
-    def before_agent(self, state: TodoState, runtime: Runtime) -> dict[str, Any]:
+    def before_agent(self, state: TodoState, runtime: Runtime[AppContext]) -> dict[str, Any]:
         # Reset the reminder counter, but preserve the session's todos list.
         return {"rounds_since_todo": 0, "todos": state.get("todos", [])}
 
@@ -132,7 +123,7 @@ class TodoMiddleware(AgentMiddleware[TodoState]):
         blocks.append({"type": "text", "text": self.system_prompt})
         return handler(request.override(system_message=SystemMessage(content=blocks)))
 
-    def after_model(self, state: TodoState, runtime: Runtime) -> dict[str, Any] | None:
+    def after_model(self, state: TodoState, runtime: Runtime[AppContext]) -> dict[str, Any] | None:
         # error if call todo_write > 1 per model turn
         last_ai = next(
             (m for m in reversed(state["messages"]) if isinstance(m, AIMessage)), None
@@ -145,7 +136,7 @@ class TodoMiddleware(AgentMiddleware[TodoState]):
             ) for call in calls]}
         return None
 
-    def before_model(self, state: TodoState, runtime: Runtime) -> dict[str, Any] | None:
+    def before_model(self, state: TodoState, runtime: Runtime[AppContext]) -> dict[str, Any] | None:
         # update reminder counter, if counter >= 3, inject update message
         messages = state["messages"]
         if not messages or not isinstance(messages[-1], ToolMessage):

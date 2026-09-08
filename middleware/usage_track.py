@@ -1,32 +1,25 @@
-from typing import NotRequired, Callable, Any
-
-from langchain.messages import AIMessage
+from typing import Callable, Any
 
 from langchain.agents.middleware import (
     AgentMiddleware,
-    AgentState,
     ModelResponse,
     ModelRequest,
     ExtendedModelResponse
 )
+from langchain.messages import AIMessage
 from langgraph.runtime import Runtime
 from langgraph.types import Command
 
+from context import AppContext
+from state import UsageTrackState
 
-class UsageTrackState(AgentState):
-    last_turn_input_tokens: NotRequired[int]
-    last_turn_output_tokens: NotRequired[int]
-    last_turn_total_tokens: NotRequired[int]
-    last_turn_cache_tokens: NotRequired[int]
-
-
-class UsageTrackMiddleware(AgentMiddleware[UsageTrackState]):
+class UsageTrackMiddleware(AgentMiddleware[UsageTrackState, AppContext, Any]):
     state_schema = UsageTrackState
 
     def __init__(self):
         super().__init__()
 
-    def before_agent(self, state: UsageTrackState, runtime: Runtime) -> dict[str, Any] | None:
+    def before_agent(self, state: UsageTrackState, runtime: Runtime[AppContext]) -> dict[str, Any] | None:
         return {
             "last_turn_input_tokens": 0,
             "last_turn_output_tokens": 0,
@@ -34,7 +27,7 @@ class UsageTrackMiddleware(AgentMiddleware[UsageTrackState]):
             "last_turn_cache_tokens": 0,
         }
 
-    def wrap_model_call(self, request: ModelRequest, handler: Callable[[ModelRequest], ModelResponse],
+    def wrap_model_call(self, request: ModelRequest[AppContext], handler: Callable[[ModelRequest[AppContext]], ModelResponse],
                         ) -> ModelResponse | ExtendedModelResponse:
         response = handler(request)
         ai_msg = next((msg for msg in reversed(response.result) if isinstance(msg, AIMessage)), None)
@@ -56,7 +49,7 @@ class UsageTrackMiddleware(AgentMiddleware[UsageTrackState]):
                                          "last_turn_cache_tokens": cache_hits,
                                      }))
 
-    def after_agent(self, state: UsageTrackState, runtime: Runtime) -> dict[str, Any] | None:
+    def after_agent(self, state: UsageTrackState, runtime: Runtime[AppContext]) -> dict[str, Any] | None:
         print(f"\033[90m[HOOK] last_turn_input_tokens: {state['last_turn_input_tokens']}\033[0m")
         print(f"\033[90m[HOOK] last_turn_output_tokens: {state['last_turn_output_tokens']}\033[0m")
         print(f"\033[90m[HOOK] last_turn_total_tokens: {state['last_turn_total_tokens']}\033[0m")
