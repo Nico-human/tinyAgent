@@ -6,6 +6,8 @@ from pathlib import Path
 @dataclass(frozen=True)
 class WorkspaceContext:
     root: Path
+    transcript_dir: str = ".transcripts"
+    tool_result_dir: str = ".tool_results"
     encoding: str = "utf-8" # 先写死
 
     def __post_init__(self):

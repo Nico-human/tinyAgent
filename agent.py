@@ -14,7 +14,8 @@ from middleware import (TodoMiddleware,
                         PermissionMiddleware,
                         ContextInjectMiddleware,
                         LoggerMiddleware,
-                        SkillMiddleware)
+                        SkillMiddleware,
+                        ContextCompactorMiddleware)
 from state import SessionState
 from tools import run_write, run_read, run_edit, run_glob, run_bash, run_subagent
 
@@ -57,6 +58,7 @@ def build_agent() -> CompiledStateGraph:
             LoggerMiddleware(),
             UsageTrackMiddleware(),
             SkillMiddleware(),
+            ContextCompactorMiddleware(model),
         ],
         context_schema=AppContext,
     )
@@ -77,6 +79,7 @@ if __name__ == "__main__":
     print("s05: TodoWrite - plan before execution")
     print("s06: Subagent - fresh messages, final text returns")
     print("s07: Skill Loading - catalog first, full content on demand")
+    print("s08: Context Compact - archive, reduce, then summarize")
 
     print("Enter a question, press Enter to send. Type q to quit.\n")
 

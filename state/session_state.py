@@ -1,6 +1,6 @@
-from .custom_state import TodoState, UsageTrackState
+from .custom_state import TodoState, UsageTrackState, ContextCompactState
 
 
 # -- type hint for IDE --
-class SessionState(TodoState, UsageTrackState):
+class SessionState(TodoState, UsageTrackState, ContextCompactState):
     pass

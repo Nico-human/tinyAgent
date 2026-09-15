@@ -1,6 +1,7 @@
 from typing import TypedDict, Annotated, Literal, NotRequired
 
 from langchain.agents.middleware import AgentState
+from langchain.messages import HumanMessage
 from pydantic import Field
 
 
@@ -22,3 +23,8 @@ class UsageTrackState(AgentState):
     last_turn_output_tokens: NotRequired[int]
     last_turn_total_tokens: NotRequired[int]
     last_turn_cache_tokens: NotRequired[int]
+
+# -- context compact state --
+class ContextCompactState(AgentState):
+    compact_request: NotRequired[HumanMessage | None]
+    compact_requested: NotRequired[bool]
