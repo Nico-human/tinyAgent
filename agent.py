@@ -11,7 +11,7 @@ from context import AppContext, WorkspaceContext, BlockCommandContext
 from middleware import TodoMiddleware, UsageTrackMiddleware, PermissionMiddleware, ContextInjectMiddleware, \
     LoggerMiddleware
 from state import SessionState
-from tools import run_write, run_read, run_edit, run_glob, run_bash
+from tools import run_write, run_read, run_edit, run_glob, run_bash, run_subagent
 
 try:
     import readline
@@ -29,7 +29,9 @@ load_dotenv(verbose=True, override=True)
 
 def build_agent() -> CompiledStateGraph:
     model_id = os.getenv("MODEL_ID", "deepseek-v4-flash")
-    system_prompt = "You are a coding agent. Use tools to solve tasks."
+    system_prompt = ("You are a coding agent. "
+                     "Use tools to solve tasks. "
+                     "Use subagent for focused exploration or a self-contained subtask.")
     model = ChatDeepSeek(
         model=model_id,
         temperature=0.7,
@@ -41,7 +43,7 @@ def build_agent() -> CompiledStateGraph:
 
     return create_agent(
         model=model,
-        tools=[run_bash, run_read, run_write, run_edit, run_glob],
+        tools=[run_bash, run_read, run_write, run_edit, run_glob, run_subagent],
         system_prompt=system_prompt,
         middleware=[
             ContextInjectMiddleware(),
@@ -66,6 +68,7 @@ if __name__ == "__main__":
     print("s02: Tool Use - four tools added to s01")
     print("s04: Hooks - extension logic on hooks, loop stays clean")
     print("s05: TodoWrite - plan before execution")
+    print("s06: Subagent - fresh messages, final text returns")
 
     print("Enter a question, press Enter to send. Type q to quit.\n")
 
