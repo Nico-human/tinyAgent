@@ -1,6 +1,7 @@
 from pydantic import BaseModel, ConfigDict
 
-from .custom_context import WorkspaceContext, BlockCommandContext
+from .custom_context import (WorkspaceContext,
+                             BlockCommandContext,)
 
 
 class AppContext(BaseModel):

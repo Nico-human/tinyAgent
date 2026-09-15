@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from typing import Any
 
 from dotenv import load_dotenv
 from langchain.agents import create_agent
@@ -8,8 +9,12 @@ from langchain_deepseek import ChatDeepSeek
 from langgraph.graph.state import CompiledStateGraph
 
 from context import AppContext, WorkspaceContext, BlockCommandContext
-from middleware import TodoMiddleware, UsageTrackMiddleware, PermissionMiddleware, ContextInjectMiddleware, \
-    LoggerMiddleware
+from middleware import (TodoMiddleware,
+                        UsageTrackMiddleware,
+                        PermissionMiddleware,
+                        ContextInjectMiddleware,
+                        LoggerMiddleware,
+                        SkillMiddleware)
 from state import SessionState
 from tools import run_write, run_read, run_edit, run_glob, run_bash, run_subagent
 
@@ -51,14 +56,16 @@ def build_agent() -> CompiledStateGraph:
             PermissionMiddleware(),
             LoggerMiddleware(),
             UsageTrackMiddleware(),
+            SkillMiddleware(),
         ],
         context_schema=AppContext,
     )
 
 
 def get_context_info() -> AppContext:
-    block_command = BlockCommandContext()
-    context = AppContext(workspace=WorkspaceContext(Path.cwd()), block_command=block_command)
+    root = Path.cwd()
+    context = AppContext(workspace=WorkspaceContext(root),
+                         block_command=BlockCommandContext(),)
     return context
 
 
@@ -69,11 +76,12 @@ if __name__ == "__main__":
     print("s04: Hooks - extension logic on hooks, loop stays clean")
     print("s05: TodoWrite - plan before execution")
     print("s06: Subagent - fresh messages, final text returns")
+    print("s07: Skill Loading - catalog first, full content on demand")
 
     print("Enter a question, press Enter to send. Type q to quit.\n")
 
     agent = build_agent()
-    session_state: SessionState = {"messages": []}
+    session_state: SessionState | dict[str, Any] = {"messages": []}
     app_context = get_context_info()
 
     while True:

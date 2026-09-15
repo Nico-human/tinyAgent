@@ -9,7 +9,7 @@ from langgraph.prebuilt import ToolRuntime
 
 from context import AppContext
 from middleware import PermissionMiddleware, LoggerMiddleware, UsageTrackMiddleware, \
-    ContextInjectMiddleware
+    ContextInjectMiddleware, SkillMiddleware
 from state import SessionState
 from .file_system_tool import run_read, run_write, run_edit
 from .shell_tool import run_bash, run_glob
@@ -36,7 +36,8 @@ def build_subagent() -> CompiledStateGraph:
                             middleware=[ContextInjectMiddleware(),
                                         PermissionMiddleware(),
                                         LoggerMiddleware(),
-                                        UsageTrackMiddleware()],
+                                        UsageTrackMiddleware(),
+                                        SkillMiddleware()],
                             context_schema=AppContext)
     return subagent
 
