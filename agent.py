@@ -3,12 +3,15 @@ from pathlib import Path
 from typing import Any
 
 from dotenv import load_dotenv
+
+load_dotenv(verbose=True, override=True)
+
 from langchain.agents import create_agent
 from langchain.messages import HumanMessage
 from langchain_deepseek import ChatDeepSeek
 from langgraph.graph.state import CompiledStateGraph
 
-from context import AppContext, WorkspaceContext, BlockCommandContext
+from context import AppContext, load_context
 from middleware import (TodoMiddleware,
                         UsageTrackMiddleware,
                         PermissionMiddleware,
@@ -30,10 +33,8 @@ try:
 except ImportError:
     pass
 
-load_dotenv(verbose=True, override=True)
 
-
-def build_agent() -> CompiledStateGraph:
+def build_agent(context: AppContext) -> CompiledStateGraph:
     model_id = os.getenv("MODEL_ID", "deepseek-v4-flash")
     system_prompt = ("You are a coding agent. "
                      "Use tools to solve tasks. "
@@ -57,18 +58,11 @@ def build_agent() -> CompiledStateGraph:
             PermissionMiddleware(),
             LoggerMiddleware(),
             UsageTrackMiddleware(),
-            SkillMiddleware(),
+            SkillMiddleware(context),
             ContextCompactorMiddleware(model),
         ],
         context_schema=AppContext,
     )
-
-
-def get_context_info() -> AppContext:
-    root = Path.cwd()
-    context = AppContext(workspace=WorkspaceContext(root),
-                         block_command=BlockCommandContext(),)
-    return context
 
 
 # -- Entry point --
@@ -83,9 +77,9 @@ if __name__ == "__main__":
 
     print("Enter a question, press Enter to send. Type q to quit.\n")
 
-    agent = build_agent()
+    app_context = load_context(Path.cwd())
+    agent = build_agent(app_context)
     session_state: SessionState | dict[str, Any] = {"messages": []}
-    app_context = get_context_info()
 
     while True:
         try:

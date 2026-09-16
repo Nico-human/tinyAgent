@@ -15,7 +15,7 @@ from .file_system_tool import run_read, run_write, run_edit
 from .shell_tool import run_bash, run_glob
 
 
-def build_subagent() -> CompiledStateGraph:
+def build_subagent(context: AppContext) -> CompiledStateGraph:
     submodel_id = "deepseek-v4-flash"
 
     sub_system = (
@@ -37,7 +37,7 @@ def build_subagent() -> CompiledStateGraph:
                                         PermissionMiddleware(),
                                         LoggerMiddleware(),
                                         UsageTrackMiddleware(),
-                                        SkillMiddleware(),
+                                        SkillMiddleware(context),
                                         ContextCompactorMiddleware(model)],
                             context_schema=AppContext)
     return subagent
@@ -54,7 +54,7 @@ def run_subagent(runtime: ToolRuntime[AppContext, AgentState], prompt: str) -> s
     context: AppContext = runtime.context
 
     try:
-        subagent = build_subagent()
+        subagent = build_subagent(context)
         response = subagent.invoke(session_state, context = context)
         result: str | None = format_subagent_resp(response)
         return result if result else "Subagent stopped without a final answer."

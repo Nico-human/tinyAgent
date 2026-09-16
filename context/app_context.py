@@ -1,7 +1,10 @@
-from pydantic import BaseModel, ConfigDict
+from pathlib import Path
+
+from pydantic import BaseModel, ConfigDict, Field
 
 from .custom_context import (WorkspaceContext,
                              BlockCommandContext,)
+from .skill_context import Skill, load_workspace_skills
 
 
 class AppContext(BaseModel):
@@ -9,3 +12,11 @@ class AppContext(BaseModel):
 
     workspace: WorkspaceContext
     block_command: BlockCommandContext
+    skills: dict[str, Skill] = Field(default_factory=dict)
+
+def load_context(root: Path) -> AppContext:
+    workspace = WorkspaceContext(root)
+    context = AppContext(workspace=workspace,
+                         block_command=BlockCommandContext(),
+                         skills=load_workspace_skills(workspace))
+    return context
