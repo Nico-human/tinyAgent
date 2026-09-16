@@ -54,3 +54,8 @@ class UsageTrackMiddleware(AgentMiddleware[UsageTrackState, AppContext, Any]):
         print(f"\033[90m[HOOK] last_turn_output_tokens: {state['last_turn_output_tokens']}\033[0m")
         print(f"\033[90m[HOOK] last_turn_total_tokens: {state['last_turn_total_tokens']}\033[0m")
         print(f"\033[90m[HOOK] last_turn_cache_tokens: {state['last_turn_cache_tokens']}\033[0m")
+        return {
+            "total_tokens": state.get("total_tokens", 0) + state["last_turn_total_tokens"],
+            "total_input": state.get("total_input", 0) + state["last_turn_input_tokens"],
+            "total_output": state.get("total_output", 0) + state["last_turn_output_tokens"],
+        }

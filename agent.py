@@ -1,15 +1,16 @@
 import os
+import uuid
 from pathlib import Path
-from typing import Any
 
 from dotenv import load_dotenv
 
 load_dotenv(verbose=True, override=True)
 
+from langchain_core.runnables import RunnableConfig
 from langchain.agents import create_agent
-from langchain.messages import HumanMessage
 from langchain_deepseek import ChatDeepSeek
 from langgraph.graph.state import CompiledStateGraph
+from langgraph.checkpoint.memory import InMemorySaver
 
 from context import AppContext, load_context
 from middleware import (TodoMiddleware,
@@ -19,7 +20,6 @@ from middleware import (TodoMiddleware,
                         LoggerMiddleware,
                         SkillMiddleware,
                         ContextCompactorMiddleware)
-from state import SessionState
 from tools import run_write, run_read, run_edit, run_glob, run_bash, run_subagent
 
 try:
@@ -62,24 +62,25 @@ def build_agent(context: AppContext) -> CompiledStateGraph:
             ContextCompactorMiddleware(model),
         ],
         context_schema=AppContext,
+        checkpointer=InMemorySaver(),
     )
 
 
 # -- Entry point --
 if __name__ == "__main__":
-    print("s01: Agent Loop")
-    print("s02: Tool Use - four tools added to s01")
-    print("s04: Hooks - extension logic on hooks, loop stays clean")
-    print("s05: TodoWrite - plan before execution")
-    print("s06: Subagent - fresh messages, final text returns")
-    print("s07: Skill Loading - catalog first, full content on demand")
-    print("s08: Context Compact - archive, reduce, then summarize")
+    # print("s01: Agent Loop")
+    # print("s02: Tool Use - four tools added to s01")
+    # print("s04: Hooks - extension logic on hooks, loop stays clean")
+    # print("s05: TodoWrite - plan before execution")
+    # print("s06: Subagent - fresh messages, final text returns")
+    # print("s07: Skill Loading - catalog first, full content on demand")
+    # print("s08: Context Compact - archive, reduce, then summarize")
 
     print("Enter a question, press Enter to send. Type q to quit.\n")
 
-    app_context = load_context(Path.cwd())
-    agent = build_agent(app_context)
-    session_state: SessionState | dict[str, Any] = {"messages": []}
+    app_context: AppContext = load_context(Path.cwd())
+    agent: CompiledStateGraph = build_agent(app_context)
+    config: RunnableConfig = {"configurable": {"thread_id": str(uuid.uuid4())}}
 
     while True:
         try:
@@ -88,8 +89,11 @@ if __name__ == "__main__":
             break
 
         if query.strip().lower() in ("q", "quit", "exit", ""):
+            state = agent.get_state(config).values
+            print(f"\033[90m[HOOK] total_tokens: {state.get('total_tokens', 0)}\033[0m")
+            print(f"\033[90m[HOOK] total_input: {state.get('total_input', 0)}\033[0m")
+            print(f"\033[90m[HOOK] total_output: {state.get('total_output', 0)}\033[0m")
             break
 
-        session_state["messages"].append(HumanMessage(query))
-        session_state = agent.invoke(input=session_state, context=app_context)
-        print(session_state["messages"][-1].content)
+        resp = agent.invoke({"messages": query}, config=config, context=app_context)
+        print(resp["messages"][-1].content)

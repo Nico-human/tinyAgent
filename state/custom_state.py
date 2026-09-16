@@ -23,6 +23,9 @@ class UsageTrackState(AgentState):
     last_turn_output_tokens: NotRequired[int]
     last_turn_total_tokens: NotRequired[int]
     last_turn_cache_tokens: NotRequired[int]
+    total_tokens: NotRequired[int]
+    total_input: NotRequired[int]
+    total_output: NotRequired[int]
 
 # -- context compact state --
 class ContextCompactState(AgentState):
