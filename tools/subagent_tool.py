@@ -1,11 +1,12 @@
 from typing import Any
 
-from langchain.agents import create_agent, AgentState
+from langchain.agents import create_agent
 from langchain.messages import HumanMessage, ToolMessage
 from langchain.tools import tool
 from langchain_deepseek import ChatDeepSeek
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import ToolRuntime
+from langgraph.types import Command
 
 from context import AppContext
 from middleware import PermissionMiddleware, LoggerMiddleware, UsageTrackMiddleware, \
@@ -44,7 +45,7 @@ def build_subagent(context: AppContext) -> CompiledStateGraph:
 
 
 @tool("task")
-def run_subagent(runtime: ToolRuntime[AppContext, AgentState], prompt: str) -> str | ToolMessage:
+def run_subagent(runtime: ToolRuntime[AppContext, SessionState], prompt: str) -> ToolMessage | Command:
     """
     Run a subagent with fresh conversation context and return its final text.
     """
@@ -57,7 +58,14 @@ def run_subagent(runtime: ToolRuntime[AppContext, AgentState], prompt: str) -> s
         subagent = build_subagent(context)
         response = subagent.invoke(session_state, context = context)
         result: str | None = format_subagent_resp(response)
-        return result if result else "Subagent stopped without a final answer."
+        usage_update: dict[str, Any] = count_token_usage(runtime.state, response)
+        return Command(update={
+            **usage_update,
+            "messages": [ToolMessage(
+                content=result or "Subagent stopped without a final answer.",
+                tool_call_id=runtime.tool_call_id,
+            )],
+        })
     except Exception as e:
         return ToolMessage(content=f"Error: {e}", tool_call_id=runtime.tool_call_id, status="error")
     finally:
@@ -66,3 +74,15 @@ def run_subagent(runtime: ToolRuntime[AppContext, AgentState], prompt: str) -> s
 
 def format_subagent_resp(response: dict[str, Any]) -> str | None:
     return response["messages"][-1].content
+
+
+def count_token_usage(state: SessionState, response: dict[str, Any]) -> dict[str, Any]:
+    return {
+        key: state.get(key, 0) + response.get(key, 0)
+        for key in (
+            "last_turn_input_tokens",
+            "last_turn_output_tokens",
+            "last_turn_total_tokens",
+            "last_turn_cache_tokens",
+        )
+    }

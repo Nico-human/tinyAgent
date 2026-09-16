@@ -13,6 +13,7 @@ from langgraph.types import Command
 from context import AppContext
 from state import UsageTrackState
 
+
 class UsageTrackMiddleware(AgentMiddleware[UsageTrackState, AppContext, Any]):
     state_schema = UsageTrackState
 
