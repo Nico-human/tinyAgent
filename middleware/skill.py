@@ -1,4 +1,5 @@
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from langchain.agents import AgentState
 from langchain.agents.middleware import AgentMiddleware, ModelRequest, ModelResponse
@@ -26,7 +27,9 @@ class SkillMiddleware(AgentMiddleware[AgentState, AppContext, Any]):
             )
         self.tools = [tool(self.load_skills)]
 
-    def load_skills(self, skill_name: str, runtime: ToolRuntime[AppContext, AgentState]) -> str | ToolMessage:
+    def load_skills(
+        self, skill_name: str, runtime: ToolRuntime[AppContext, AgentState]
+    ) -> str | ToolMessage:
         """Load the full SKILL.md content by skill name."""
         skills = runtime.context.skills
         skill = skills.get(skill_name, None)
@@ -44,12 +47,13 @@ class SkillMiddleware(AgentMiddleware[AgentState, AppContext, Any]):
         request: ModelRequest[AppContext],
         handler: Callable[[ModelRequest[AppContext]], ModelResponse[Any]],
     ) -> ModelResponse[Any]:
-        """ 注入skill prompt到系统提示词中 """
+        """注入skill prompt到系统提示词中"""
         if self.skill_prompt is None:
             return handler(request)
         blocks = (
             list(request.system_message.content_blocks)
-            if request.system_message is not None else []
+            if request.system_message is not None
+            else []
         )
         blocks.append({"type": "text", "text": self.skill_prompt})
         modify_request = request.override(system_message=SystemMessage(content=blocks))

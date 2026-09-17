@@ -1,4 +1,5 @@
-from typing import Callable, Any
+from collections.abc import Callable
+from typing import Any
 
 from langchain.agents import AgentState
 from langchain.agents.middleware import AgentMiddleware
@@ -10,11 +11,10 @@ from context import AppContext
 
 
 class LoggerMiddleware(AgentMiddleware[AgentState, AppContext, Any]):
-
     def wrap_tool_call(
-            self,
-            request: ToolCallRequest,
-            handler: Callable[[ToolCallRequest], ToolMessage | Command[Any]],
+        self,
+        request: ToolCallRequest,
+        handler: Callable[[ToolCallRequest], ToolMessage | Command[Any]],
     ) -> ToolMessage | Command[Any]:
         tool_call = request.tool_call
         tool_name = tool_call["name"]
@@ -26,5 +26,7 @@ class LoggerMiddleware(AgentMiddleware[AgentState, AppContext, Any]):
         if isinstance(response, ToolMessage):
             content_length = len(str(response.content))
             if content_length > 100000:
-                print(f"\033[33m[HOOK] Large output from {tool_name}: {content_length} chars\033[0m")
+                print(
+                    f"\033[33m[HOOK] Large output from {tool_name}: {content_length} chars\033[0m"
+                )
         return response

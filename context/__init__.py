@@ -1,8 +1,12 @@
-from .custom_context import (WorkspaceContext,
-                             BlockCommandContext,)
 from .app_context import AppContext, load_context
+from .custom_context import (
+    BlockCommandContext,
+    WorkspaceContext,
+)
 
-__all__ = ["WorkspaceContext",
-           "AppContext",
-           "BlockCommandContext",
-           "load_context",]
+__all__ = [
+    "AppContext",
+    "BlockCommandContext",
+    "WorkspaceContext",
+    "load_context",
+]

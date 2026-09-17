@@ -8,14 +8,22 @@ class WorkspaceContext:
     root: Path
     transcript_dir: str = ".transcripts"
     tool_result_dir: str = ".tool_results"
-    encoding: str = "utf-8" # 先写死
+    encoding: str = "utf-8"  # 先写死
 
     def __post_init__(self):
         object.__setattr__(self, "root", self.root.resolve())
 
+
 @dataclass(frozen=True)
 class BlockCommandContext:
-    deny_list: tuple[str, ...] = ("rm -rf /", "sudo", "shutdown", "reboot", "mkfs", "dd if=")
+    deny_list: tuple[str, ...] = (
+        "rm -rf /",
+        "sudo",
+        "shutdown",
+        "reboot",
+        "mkfs",
+        "dd if=",
+    )
     destructive_command_word: re.Pattern[str] = re.compile(
         r"(?i)(?:^|[;&|()\n])\s*(?:rm|del)(?=\s|$|[;&|()])"
     )

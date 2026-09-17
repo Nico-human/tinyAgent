@@ -1,4 +1,4 @@
-from typing import TypedDict, Annotated, Literal, NotRequired
+from typing import Annotated, Literal, NotRequired, TypedDict
 
 from langchain.agents.middleware import AgentState
 from langchain.messages import HumanMessage
@@ -26,6 +26,7 @@ class UsageTrackState(AgentState):
     total_tokens: NotRequired[int]
     total_input: NotRequired[int]
     total_output: NotRequired[int]
+
 
 # -- context compact state --
 class ContextCompactState(AgentState):

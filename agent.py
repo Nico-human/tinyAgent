@@ -6,39 +6,43 @@ from dotenv import load_dotenv
 
 load_dotenv(verbose=True, override=True)
 
-from langchain_core.runnables import RunnableConfig
 from langchain.agents import create_agent
+from langchain_core.runnables import RunnableConfig
 from langchain_deepseek import ChatDeepSeek
-from langgraph.graph.state import CompiledStateGraph
 from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.graph.state import CompiledStateGraph
 
 from context import AppContext, load_context
-from middleware import (TodoMiddleware,
-                        UsageTrackMiddleware,
-                        PermissionMiddleware,
-                        ContextInjectMiddleware,
-                        LoggerMiddleware,
-                        SkillMiddleware,
-                        ContextCompactorMiddleware)
-from tools import run_write, run_read, run_edit, run_glob, run_bash, run_subagent
+from middleware import (
+    ContextCompactorMiddleware,
+    ContextInjectMiddleware,
+    LoggerMiddleware,
+    PermissionMiddleware,
+    SkillMiddleware,
+    TodoMiddleware,
+    UsageTrackMiddleware,
+)
+from tools import run_bash, run_edit, run_glob, run_read, run_subagent, run_write
 
 try:
     import readline
 
     # #143 UTF-8 backspace fix for macOS libedit
-    readline.parse_and_bind('set bind-tty-special-chars off')
-    readline.parse_and_bind('set input-meta on')
-    readline.parse_and_bind('set output-meta on')
-    readline.parse_and_bind('set convert-meta off')
+    readline.parse_and_bind("set bind-tty-special-chars off")
+    readline.parse_and_bind("set input-meta on")
+    readline.parse_and_bind("set output-meta on")
+    readline.parse_and_bind("set convert-meta off")
 except ImportError:
     pass
 
 
 def build_agent(context: AppContext) -> CompiledStateGraph:
     model_id = os.getenv("MODEL_ID", "deepseek-v4-flash")
-    system_prompt = ("You are a coding agent. "
-                     "Use tools to solve tasks. "
-                     "Use subagent for focused exploration or a self-contained subtask.")
+    system_prompt = (
+        "You are a coding agent. "
+        "Use tools to solve tasks. "
+        "Use subagent for focused exploration or a self-contained subtask."
+    )
     model = ChatDeepSeek(
         model=model_id,
         temperature=0.7,

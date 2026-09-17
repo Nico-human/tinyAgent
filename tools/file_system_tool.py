@@ -1,15 +1,17 @@
 from pathlib import Path
 
 from langchain.agents import AgentState
-from langchain.tools import tool, ToolRuntime
+from langchain.tools import ToolRuntime, tool
 
 from context import AppContext
 
-
 # -- file system tool --
 
+
 @tool("read_file")
-def run_read(runtime: ToolRuntime[AppContext, AgentState], path: str, limit: int | None = None) -> str:
+def run_read(
+    runtime: ToolRuntime[AppContext, AgentState], path: str, limit: int | None = None
+) -> str:
     """
     Read file contents.
     :arg path: file path.
@@ -18,7 +20,9 @@ def run_read(runtime: ToolRuntime[AppContext, AgentState], path: str, limit: int
     try:
         workdir: Path = runtime.context.workspace.root
         file_path = (workdir / path).resolve()
-        lines = file_path.read_text(encoding=runtime.context.workspace.encoding).splitlines()
+        lines = file_path.read_text(
+            encoding=runtime.context.workspace.encoding
+        ).splitlines()
         if limit is not None and 0 < limit < len(lines):
             lines = lines[:limit] + [f"... ({len(lines) - limit} more lines)"]
         return "\n".join(lines)
@@ -27,7 +31,9 @@ def run_read(runtime: ToolRuntime[AppContext, AgentState], path: str, limit: int
 
 
 @tool("write_file")
-def run_write(path: str, content: str, runtime: ToolRuntime[AppContext, AgentState]) -> str:
+def run_write(
+    path: str, content: str, runtime: ToolRuntime[AppContext, AgentState]
+) -> str:
     """
     write content to a file.
     """
@@ -42,7 +48,12 @@ def run_write(path: str, content: str, runtime: ToolRuntime[AppContext, AgentSta
 
 
 @tool("edit_file")
-def run_edit(path: str, old_text: str, new_text: str, runtime: ToolRuntime[AppContext, AgentState]) -> str:
+def run_edit(
+    path: str,
+    old_text: str,
+    new_text: str,
+    runtime: ToolRuntime[AppContext, AgentState],
+) -> str:
     """
     Replace exact text in a file once.
     """

@@ -17,15 +17,18 @@ def parse_frontmatter(text: str) -> tuple[dict, str]:
         return {}, text
 
     closing_index = next(
-        (index for index, line in enumerate(lines[1:], start=1)
-         if line.rstrip("\r\n") == "---"),
+        (
+            index
+            for index, line in enumerate(lines[1:], start=1)
+            if line.rstrip("\r\n") == "---"
+        ),
         None,
     )
     if closing_index is None:
         return {}, text
 
     frontmatter = "".join(lines[1:closing_index])
-    body = "".join(lines[closing_index + 1:]).strip()
+    body = "".join(lines[closing_index + 1 :]).strip()
     try:
         metadata = yaml.safe_load(frontmatter) or {}
     except yaml.YAMLError:
@@ -43,8 +46,7 @@ def load_workspace_skills(workspace: WorkspaceContext) -> dict[str, Skill]:
         return skills
     skills_root = skill_path.resolve()
     for manifest in sorted(skill_path.glob("*/SKILL.md")):
-        if (not manifest.is_file()
-                or not manifest.resolve().is_relative_to(skills_root)):
+        if not manifest.is_file() or not manifest.resolve().is_relative_to(skills_root):
             continue
         content = manifest.read_text(encoding=workspace.encoding)
         metadata, body = parse_frontmatter(content)
@@ -52,7 +54,9 @@ def load_workspace_skills(workspace: WorkspaceContext) -> dict[str, Skill]:
         name = raw_name.strip() if isinstance(raw_name, str) else ""
         name = name or manifest.parent.name
         raw_description = metadata.get("description")
-        description = raw_description.strip() if isinstance(raw_description, str) else ""
+        description = (
+            raw_description.strip() if isinstance(raw_description, str) else ""
+        )
         description = description or body.split("\n", 1)[0]
         description = " ".join(str(description).lstrip("# ").split())
         skills[name] = {

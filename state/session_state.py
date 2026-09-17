@@ -1,4 +1,4 @@
-from .custom_state import TodoState, UsageTrackState, ContextCompactState
+from .custom_state import ContextCompactState, TodoState, UsageTrackState
 
 
 # -- type hint for IDE --
